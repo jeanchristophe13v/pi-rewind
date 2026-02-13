@@ -1,0 +1,10 @@
+{
+  "name": "pi-rewind",
+  "version": "0.1.0",
+  "description": "A git-free rewind extension for Pi coding agent",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./rewind.ts"]
+  }
+}

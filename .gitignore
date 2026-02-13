@@ -1,0 +1,4 @@
+.pi/rewind/
+node_modules/
+*.log
+.DS_Store
