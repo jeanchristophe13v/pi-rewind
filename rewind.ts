@@ -487,14 +487,12 @@ export default function rewindExtension(pi: ExtensionAPI) {
 	};
 
 	const undoLastRewind = async (ctx: ExtensionCommandContext) => {
-		const commandStart = Date.now();
 		const { latestAction, undone } = getLatestActionState();
 		if (!latestAction || undone.has(latestAction.actionId)) {
 			ctx.ui.notify("No rewind action available to undo. Use /rewind first.", "warning");
 			return;
 		}
 		const action = latestAction;
-		let undoElapsedMs: number | undefined;
 
 		if (action.mode === "conversation+changes" || action.mode === "conversation-only") {
 			if (!action.previousLeafId) {
@@ -515,13 +513,10 @@ export default function rewindExtension(pi: ExtensionAPI) {
 			if (ops.length >= 50) {
 				ctx.ui.notify(`Applying undo to ${ops.length} files...`, "info");
 			}
-			const start = Date.now();
 			const result = await applyFileOperations(ops);
-			undoElapsedMs = Date.now() - start;
 			if (result.errors.length > 0) {
-				const wallMs = Date.now() - commandStart;
 				ctx.ui.notify(
-					`Undo completed with errors (restored ${result.restored}, removed ${result.removed}, errors ${result.errors.length}, files ${undoFileCount}) in ${undoElapsedMs}ms (wall ${wallMs}ms)`,
+					`Undo completed with errors (restored ${result.restored}, removed ${result.removed}, errors ${result.errors.length}, files ${undoFileCount})`,
 					"warning",
 				);
 				return;
@@ -536,11 +531,8 @@ export default function rewindExtension(pi: ExtensionAPI) {
 
 		rebuildRewindMarkers(ctx);
 
-		const wallMs = Date.now() - commandStart;
 		ctx.ui.notify(
-			undoElapsedMs !== undefined
-				? `Undo rewind completed (files ${undoFileCount}) in ${undoElapsedMs}ms (wall ${wallMs}ms)`
-				: `Undo rewind completed (wall ${wallMs}ms)`,
+			undoFileCount > 0 ? `Undo rewind completed (files ${undoFileCount})` : "Undo rewind completed",
 			"info",
 		);
 	};
@@ -572,7 +564,6 @@ export default function rewindExtension(pi: ExtensionAPI) {
 						? "conversation-only"
 						: "changes-only";
 
-			const commandStart = Date.now();
 			const currentLeafId = ctx.sessionManager.getLeafId();
 			const previousLeafId = currentLeafId ?? null;
 			const rewindPlan = computeRewindPlan(targetId, previousLeafId, ctx);
@@ -628,14 +619,8 @@ export default function rewindExtension(pi: ExtensionAPI) {
 				if (collapsedOperations.length >= 50) {
 					ctx.ui.notify(`Applying rewind to ${collapsedOperations.length} files...`, "info");
 				}
-				const totalStart = Date.now();
-				const captureStart = Date.now();
 				const undoOperations = await captureUndoOperations(ctx, collapsedOperations);
-				const captureMs = Date.now() - captureStart;
-				const applyStart = Date.now();
 				const result = await applyFileOperations(collapsedOperations);
-				const applyMs = Date.now() - applyStart;
-				const totalMs = Date.now() - totalStart;
 				const actionId = randomUUID();
 				pi.appendEntry<PersistedRewindAction>(REWIND_ACTION_CUSTOM_TYPE, {
 					version: 1,
@@ -654,15 +639,14 @@ export default function rewindExtension(pi: ExtensionAPI) {
 					undoOperations,
 				};
 				rebuildRewindMarkers(ctx);
-				const wallMs = Date.now() - commandStart;
 				if (result.errors.length > 0) {
 					ctx.ui.notify(
-						`Rewind completed with errors (restored ${result.restored}, removed ${result.removed}, errors ${result.errors.length}, files ${collapsedOperations.length}, ops ${rewindPlan.operations.length}) in ${totalMs}ms (capture ${captureMs}ms, apply ${applyMs}ms, wall ${wallMs}ms). Use /rewind-undo to revert.`,
+						`Rewind completed with errors (restored ${result.restored}, removed ${result.removed}, errors ${result.errors.length}, files ${collapsedOperations.length}, ops ${rewindPlan.operations.length}). Use /rewind-undo to revert.`,
 						"warning",
 					);
 				} else {
 					ctx.ui.notify(
-						`Changes rewound (restored ${result.restored}, removed ${result.removed}) across ${rewindPlan.totalEntries} entries (files ${collapsedOperations.length}, ops ${rewindPlan.operations.length}) in ${totalMs}ms (capture ${captureMs}ms, apply ${applyMs}ms, wall ${wallMs}ms). Use /rewind-undo to revert this rewind.`,
+						`Changes rewound (restored ${result.restored}, removed ${result.removed}) across ${rewindPlan.totalEntries} entries (files ${collapsedOperations.length}, ops ${rewindPlan.operations.length}). Use /rewind-undo to revert this rewind.`,
 						"info",
 					);
 				}
